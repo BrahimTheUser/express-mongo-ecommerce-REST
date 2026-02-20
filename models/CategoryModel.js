@@ -1,69 +1,41 @@
-const slugify = require('slugify');
-const asyncHandler = require('express-async-handler');
+const mongoose = require('mongoose');
+// 1- Create Schema
+const categorySchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Category required'],
+      unique: [true, 'Category must be unique'],
+      minlength: [3, 'Too short category name'],
+      maxlength: [32, 'Too long category name'],
+    },
+    // A and B => shopping.com/a-and-b
+    slug: {
+      type: String,
+      lowercase: true,
+    },
+    image: String,
+  },
+  { timestamps: true }
+);
 
-const Category = require('../models/CategoryModel');
-
-// @desc    Get list of categories
-// @route   GET /api/v1/categories
-// @access  Public
-exports.getCategories = asyncHandler(async (req, res) => {
-  const page = req.query.page * 1 || 1;
-  const limit = req.query.limit * 1 || 5;
-  const skip = (page - 1) * limit;
-
-  const categories = await Category.find({}).skip(skip).limit(limit);
-  res.status(200).json({ results: categories.length, page, data: categories });
-});
-
-// @desc    Get specific category by id
-// @route   GET /api/v1/categories/:id
-// @access  Public
-exports.getCategory = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const category = await Category.findById(id);
-  if (!category) {
-    res.status(404).json({ msg: `No category for this id ${id}` });
+const setImageURL = (doc) => {
+  if (doc.image) {
+    const imageUrl = `${process.env.BASE_URL}/categories/${doc.image}`;
+    doc.image = imageUrl;
   }
-  res.status(200).json({ data: category });
+};
+// findOne, findAll and update
+categorySchema.post('init', (doc) => {
+  setImageURL(doc);
 });
 
-// @desc    Create category
-// @route   POST  /api/v1/categories
-// @access  Private
-exports.createCategory = asyncHandler(async (req, res) => {
-  const name = req.body.name;
-  const category = await Category.create({ name, slug: slugify(name) });
-  res.status(201).json({ data: category });
+// create
+categorySchema.post('save', (doc) => {
+  setImageURL(doc);
 });
 
-// @desc    Update specific category
-// @route   PUT /api/v1/categories/:id
-// @access  Private
-exports.updateCategory = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { name } = req.body;
+// 2- Create model
+const CategoryModel = mongoose.model('Category', categorySchema);
 
-  const category = await Category.findOneAndUpdate(
-    { _id: id },
-    { name, slug: slugify(name) },
-    { new: true }
-  );
-
-  if (!category) {
-    res.status(404).json({ msg: `No category for this id ${id}` });
-  }
-  res.status(200).json({ data: category });
-});
-
-// @desc    Delete specific category
-// @route   DELETE /api/v1/categories/:id
-// @access  Private
-exports.deleteCategory = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const category = await Category.findByIdAndDelete(id);
-
-  if (!category) {
-    res.status(404).json({ msg: `No category for this id ${id}` });
-  }
-  res.status(204).send();
-});
+module.exports = CategoryModel;
